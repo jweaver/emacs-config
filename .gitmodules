@@ -19,3 +19,24 @@
 [submodule "emacs-jabber"]
 	path = emacs-jabber
 	url = git://emacs-jabber.git.sourceforge.net/gitroot/emacs-jabber/emacs-jabber
+[submodule "auto-complete"]
+	path = auto-complete
+	url = git://github.com/m2ym/auto-complete.git
+[submodule "yasnippet"]
+	path = yasnippet
+	url = git://github.com/capitaomorte/yasnippet.git
+[submodule "lintnode"]
+	path = lintnode
+	url = git://github.com/davidmiller/lintnode.git
+[submodule "emacs-flymake-cursor"]
+	path = emacs-flymake-cursor
+	url = https://github.com/illusori/emacs-flymake-cursor
+[submodule "js-comint"]
+	path = js-comint
+	url = git://github.com/emacsmirror/js-comint.git
+[submodule "popup-el"]
+	path = popup-el
+	url = git://github.com/m2ym/popup-el.git
+[submodule "fuzzy-el"]
+	path = fuzzy-el
+	url = git://github.com/m2ym/fuzzy-el.git

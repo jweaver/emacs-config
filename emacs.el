@@ -62,6 +62,14 @@ This one changes the cursor color on each blink. Define colors in `blink-cursor-
 (add-to-list 'load-path (construct-path (file-name-directory (or (buffer-file-name) load-file-name)) "ace-jump-mode"))
 (add-to-list 'load-path (construct-path (file-name-directory (or (buffer-file-name) load-file-name)) "Mew"))
 (add-to-list 'load-path (construct-path (file-name-directory (or (buffer-file-name) load-file-name)) "emacs-jabber"))
+(add-to-list 'load-path (construct-path (file-name-directory (or (buffer-file-name) load-file-name)) "popup-el"))
+(add-to-list 'load-path (construct-path (file-name-directory (or (buffer-file-name) load-file-name)) "fuzzy-el"))
+(add-to-list 'load-path (construct-path (file-name-directory (or (buffer-file-name) load-file-name)) "auto-complete"))
+(add-to-list 'load-path (construct-path (file-name-directory (or (buffer-file-name) load-file-name)) "yasnippet"))
+(add-to-list 'load-path (construct-path (file-name-directory (or (buffer-file-name) load-file-name)) "lintnode"))
+(add-to-list 'load-path (construct-path (file-name-directory (or (buffer-file-name) load-file-name)) "emacs-flymake-cursor"))
+(add-to-list 'load-path (construct-path (file-name-directory (or (buffer-file-name) load-file-name)) "js-comint"))
+
 
 (setq backup-directory-alist `(("." . ,(construct-path "~" "emacsbackup"))))
 
@@ -102,6 +110,100 @@ This one changes the cursor color on each blink. Define colors in `blink-cursor-
 
 (require 'todotxt)
 
+
+;; HUGE list of addons incoming... the next section of require modes are aimed at beefing up JavaScript editing capability
+;; within emacs.  Most of these are hooked into js-mode when that mode is activated.  The List:
+;; js-comint            - Used to have a REPL when javascript coding.  Useful for non-DOM, algorithmic JavaScript.
+;; flymake-jslint       - allows for syntax and lint checking.  This required some hand-editing of existing C-source file in 
+;;                        jslint, so be careful.  See the URL link below for more information.
+;; flymake-cursor       - allows for flymake notifications to appear in the mini-buffer.
+;; auto-complete-config - enables auto completion for all JavaScript variable names as well as syntax words.
+;; yasnippet            - for template auto completion, things like 'forin' auto complete on TAB.
+;; hs-minor-mode        - for code folding.  C-c C-f (Fold the code block), C-c C-o (Open the code block).
+;;
+;; Key command chart:
+;; C-c C-n              - Jumps to next flymake error.
+;; C-c C-p              - Jumps to previous flymake error.
+;; C-c C-f              - Folds the current code block, where cursor is at.  If inside a Function, folds the function.
+;; C-c C-o              - Opens the current code block if Folded.  Inside a folded function, then it opens/expands it.
+(require 'js-comint)
+;; Use nodejs as repl
+(setq inferior-js-program-command "node")
+(setq inferior-js-mode-hook
+      (lambda ()
+        (ansi-color-for-comint-mode-on)
+        (add-to-list 'comint-preoutput-filter-functions
+                     (lambda (output)
+                       (replace-regexp-in-string ".*1G\.\.\..*5G" "..." (replace-regexp-in-string ".*1G.*3G" "&gt;" output))))))
+
+
+;; Setup flymake, note we have to edit the output of jslint due to error reporting
+;; on multiple lines.  See: http://lapin-bleu.net/riviera/?p=191
+;; This is due to reporter.js in /usr/local/lib/node_modules/jslint/lib.  line breaking code needs to be removed in this file.
+(require 'flymake-jslint)
+
+(when (load "flymake" t)
+  (defun flymake-jslint-init ()
+    (let* ((temp-file (flymake-init-create-temp-buffer-copy
+                       'flymake-create-temp-inplace))
+           (local-file (file-relative-name
+                        temp-file
+                        (file-name-directory buffer-file-name))))
+      (list "jslint" (list local-file))))
+
+  (setq flymake-err-line-patterns
+        (cons '("Error: \\([[:digit:]]+\\):\\([[:digit:]]+\\):\\(.*\\)$"
+                nil 1 2 3)
+              flymake-err-line-patterns))
+  (add-to-list 'flymake-allowed-file-name-masks
+               '("\\.js\\'" flymake-jslint-init))
+  (require 'flymake-cursor)
+)
+(add-hook 'js-mode-hook
+          (lambda () 
+            (flymake-mode 1)
+            (define-key js-mode-map "\C-c\C-n" 'flymake-goto-next-error)))
+(add-hook 'js-mode-hook
+          (lambda () 
+            (flymake-mode 1)
+            (define-key js-mode-map "\C-c\C-p" 'flymake-goto-prev-error)))
+
+(setq temporary-file-directory "~/.emacs.d/tmp/")
+
+
+(require 'auto-complete-config)
+(add-to-list 'ac-dictionary-directories (construct-path (file-name-directory (or (buffer-file-name) load-file-name)) "auto-complete/dict"))
+;; Use auto-complete dictionaries by default
+(setq-default ac-sources (add-to-list 'ac-sources 'ac-source-dictionary))
+(global-auto-complete-mode t)
+;; Start auto-complete after 2 characters
+(setq ac-auto-start 2)
+(setq ac-ignore-case nil)
+
+
+(require 'yasnippet)
+(yas/global-mode 1)
+(yas/initialize)
+;; Load the snippet files themselves
+;;(yas/load-directory (construct-path (file-name-directory (or (buffer-file-name) load-file-name)) "yasnippet/snippets"))
+;; Required for the snippets to appear in auto-complete
+(add-to-list 'ac-sources 'ac-source-yasnippet)
+
+;; Set up code folding for javascript, aka hs-minor-mode
+(add-hook 'js-mode-hook
+          (lambda ()
+            ;; Scan the file for nested code blocks
+            (imenu-add-menubar-index)
+            ;; Activate the folding mode
+            (hs-minor-mode t)))
+(add-hook 'js-mode-hook
+          (lambda () 
+            (define-key js-mode-map "\C-c\C-f" 'hs-hide-block)))
+(add-hook 'js-mode-hook
+          (lambda () 
+            (define-key js-mode-map "\C-c\C-o" 'hs-show-block)))
+
+
 (require 'mew)
 
 ;; Both these functions are completely optional  
@@ -141,6 +243,7 @@ This one changes the cursor color on each blink. Define colors in `blink-cursor-
 (setq mew-prog-mime-encode (concat mew-dir "/bin/mewencode"))
 (setq mew-prog-mime-decode (concat mew-dir "/bin/mewdecode"))
 (setq mew-prog-est-update (concat mew-dir "/bin/mewest"))
+
 
 (recentf-mode t)
 (setq recentf-auto-cleanup 'never)
